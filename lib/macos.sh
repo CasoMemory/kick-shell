@@ -23,7 +23,7 @@ install_xcode_cli() {
 
     # 等待用户完成安装
     log_warn "请在弹出窗口中点击「安装」，安装完成后按回车继续..."
-    read -r
+    interactive_read "" _dummy
 
     if xcode-select -p &>/dev/null; then
         log_success "Xcode CLI Tools 安装成功"
@@ -157,11 +157,7 @@ run_macos_install() {
     setup_zshrc
 
     # 15. source .zshrc
-    log_step "激活配置"
-    if [ -f "$HOME/.zshrc" ]; then
-        # 在当前 bash 中 source zshrc 可能有 zsh 专用语法问题，这里只提示用户
-        log_info "配置已写入 ~/.zshrc"
-    fi
+    activate_zshrc
 
     # 打印摘要
     print_summary

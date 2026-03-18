@@ -239,10 +239,7 @@ run_centos_install() {
     setup_zshrc
 
     # 16. 激活配置
-    log_step "激活配置"
-    if [ -f "$HOME/.zshrc" ]; then
-        log_info "配置已写入 ~/.zshrc"
-    fi
+    activate_zshrc
 
     # 打印摘要
     print_summary

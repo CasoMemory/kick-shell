@@ -34,6 +34,32 @@ log_step() {
     echo -e "\n${BOLD}${CYAN}==>${NC}${BOLD} $1${NC}"
 }
 
+# ---- 检测是否为交互式终端 ----
+# 管道执行 (curl | bash) 时 stdin 不是终端，read 会失败
+# 返回: 0 (交互式) 或 1 (非交互式/管道)
+is_interactive() {
+    [ -t 0 ] || [ -e /dev/tty ]
+}
+
+# 交互式 read 封装：优先从 /dev/tty 读取，非交互环境返回空
+# 用法: interactive_read "prompt" variable_name
+interactive_read() {
+    local prompt="$1"
+    local varname="$2"
+
+    if [ -t 0 ]; then
+        # stdin 是终端，直接读
+        read -rp "$prompt" "$varname"
+    elif [ -e /dev/tty ]; then
+        # 管道模式但 /dev/tty 可用（如 curl | bash 在终端中执行）
+        read -rp "$prompt" "$varname" < /dev/tty
+    else
+        # 完全非交互（如 CI 环境），返回空值
+        eval "$varname=''"
+        return 0
+    fi
+}
+
 # ---- 检测工具是否已安装 ----
 # 用法: is_installed "command_name"
 # 返回: 0 (已安装) 或 1 (未安装)
@@ -218,15 +244,15 @@ configure_git() {
 
     if [ -n "$current_name" ] && [ -n "$current_email" ]; then
         log_success "Git 已配置: ${current_name} <${current_email}>"
-        read -rp "$(echo -e "${YELLOW}是否要重新配置？(y/N): ${NC}")" reconfigure
+        interactive_read "$(echo -e "${YELLOW}是否要重新配置？(y/N): ${NC}")" reconfigure
         if [[ ! "$reconfigure" =~ ^[Yy]$ ]]; then
             return 0
         fi
     fi
 
     echo ""
-    read -rp "$(echo -e "${CYAN}请输入 Git 用户名: ${NC}")" git_name
-    read -rp "$(echo -e "${CYAN}请输入 Git 邮箱: ${NC}")" git_email
+    interactive_read "$(echo -e "${CYAN}请输入 Git 用户名: ${NC}")" git_name
+    interactive_read "$(echo -e "${CYAN}请输入 Git 邮箱: ${NC}")" git_email
 
     if [ -n "$git_name" ]; then
         git config --global user.name "$git_name"
@@ -342,6 +368,26 @@ ZSHRC_BLOCK
     log_success ".zshrc 配置完成"
 }
 
+# ---- 激活 .zshrc 配置 ----
+activate_zshrc() {
+    log_step "激活配置"
+
+    if [ ! -f "$HOME/.zshrc" ]; then
+        log_warn "未找到 ~/.zshrc，跳过"
+        return 0
+    fi
+
+    log_info "配置已写入 ~/.zshrc，正在激活..."
+
+    if is_installed zsh; then
+        zsh -c "source ~/.zshrc" 2>/dev/null && \
+            log_success "~/.zshrc 已通过 zsh 激活" || \
+            log_warn "自动激活失败，请手动执行: source ~/.zshrc"
+    else
+        log_warn "Zsh 未安装，请手动执行: source ~/.zshrc"
+    fi
+}
+
 # ---- 打印安装摘要 ----
 print_summary() {
     echo ""
@@ -363,9 +409,7 @@ print_summary() {
     is_installed code && echo -e "  ${GREEN}✔${NC} VS Code CLI"
 
     echo ""
-    echo -e "${YELLOW}请执行以下命令使所有配置生效:${NC}"
+    echo -e "${YELLOW}如果部分工具未生效，请重新打开终端或执行:${NC}"
     echo -e "  ${CYAN}source ~/.zshrc${NC}"
-    echo ""
-    echo -e "${YELLOW}如果你刚安装了 Zsh，可能需要重新打开终端。${NC}"
     echo ""
 }
